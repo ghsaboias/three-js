@@ -23,6 +23,11 @@
         max-width: 300px;
         word-wrap: break-word;
       }
+      #info a {
+        cursor: pointer;
+        color: #3498db;
+        text-decoration: underline;
+      }
       #controls {
         position: absolute;
         top: 10px;
@@ -72,6 +77,20 @@
         width: 200px;
         margin: 0 10px;
       }
+      #fetchButton {
+        background-color: #3498db;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-family: Arial, sans-serif;
+        margin-left: 10px;
+      }
+
+      #newsAmount {
+        width: 50px;
+      }
     </style>
   </head>
   <body>
@@ -103,7 +122,9 @@
         <option value="fox-news">Fox News</option>
         <option value="google-news">Google News</option>
       </select>
-      <button onclick="fetchNews()">Refresh News</button>
+      <label for="newsAmount">Number of news:</label>
+      <input type="number" id="newsAmount" min="1" max="10" value="2" />
+      <button id="fetchButton">Fetch News</button>
     </div>
     <div id="log"></div>
     <button id="pauseButton">Pause</button>
@@ -191,10 +212,13 @@
       }
 
       async function addNewsMarkers(newsData) {
-        const firstNews = newsData.slice(0, 10);
+        const newsAmount = parseInt(
+          document.getElementById("newsAmount").value
+        );
+        const selectedNews = newsData.slice(0, newsAmount);
         earth.children = []; // Clear existing markers
         let addedMarkers = 0;
-        for (const news of firstNews) {
+        for (const news of selectedNews) {
           const claudeResponse = await askClaude(news);
           if (claudeResponse) {
             try {
@@ -218,20 +242,36 @@
                 throw new Error("Unable to parse location information");
               }
 
-              const markerGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+              const markerGeometry = new THREE.SphereGeometry(0.07, 50, 50);
               const markerMaterial = new THREE.MeshBasicMaterial({
                 color: 0xff0000,
               });
               const marker = new THREE.Mesh(markerGeometry, markerMaterial);
               const position = latLonToVector3(lat, lon);
               marker.position.set(position.x, position.y, position.z);
-              marker.userData = {
+
+              // Create a larger invisible sphere for hit detection
+              const hitGeometry = new THREE.SphereGeometry(0.2, 50, 50);
+              const hitMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0,
+              });
+              const hitSphere = new THREE.Mesh(hitGeometry, hitMaterial);
+              hitSphere.position.copy(marker.position);
+
+              // Group the visible marker and invisible hit sphere
+              const markerGroup = new THREE.Group();
+              markerGroup.add(marker);
+              markerGroup.add(hitSphere);
+              markerGroup.userData = {
                 title: news.title,
                 url: news.url,
                 source: news.source.name,
                 location: location,
               };
-              earth.add(marker);
+
+              earth.add(markerGroup);
               addedMarkers++;
               log(
                 `Added marker for article: "${news.title}" at ${location} (${lat}, ${lon})`
@@ -305,7 +345,9 @@
           }
         });
 
-      fetchNews();
+      document
+        .getElementById("fetchButton")
+        .addEventListener("click", fetchNews);
 
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
@@ -316,15 +358,42 @@
       }
       window.addEventListener("mousemove", onMouseMove, false);
 
-      function updateInfoBox(intersects) {
-        const infoBox = document.getElementById("info");
-        if (intersects.length > 0 && intersects[0].object.userData.title) {
-          const news = intersects[0].object.userData;
-          infoBox.innerHTML = `<strong>${news.title}</strong><br>Location: ${news.location}<br>Source: ${news.source}<br><a href="${news.url}" target="_blank">Read more</a>`;
-          infoBox.style.display = "block";
+      function onClick(event) {
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(earth.children, true);
+
+        if (intersects.length > 0) {
+          const intersectedObject = intersects[0].object;
+          const markerGroup = intersectedObject.parent;
+          if (markerGroup.userData && markerGroup.userData.title) {
+            selectedMarker = markerGroup;
+            updateInfoBox(markerGroup.userData);
+          } else {
+            selectedMarker = null;
+            hideInfoBox();
+          }
         } else {
-          infoBox.style.display = "none";
+          selectedMarker = null;
+          hideInfoBox();
         }
+      }
+      window.addEventListener("click", onClick, false);
+
+      function updateInfoBox(newsData) {
+        const infoBox = document.getElementById("info");
+        const news = newsData[0].object.userData;
+        infoBox.innerHTML = `
+        <strong>${news.title}</strong><br>
+        Location: ${news.location}<br>
+        Source: ${news.source}<br>
+        <a href="${news.url}" target="_blank">Read more</a>
+    `;
+        infoBox.style.display = "block";
+      }
+
+      function hideInfoBox() {
+        const infoBox = document.getElementById("info");
+        infoBox.style.display = "none";
       }
 
       let isPaused = false;
@@ -332,6 +401,7 @@
       const animationSlider = document.getElementById("animationSlider");
       const sliderValue = document.getElementById("sliderValue");
       let lastSliderValue = 0;
+      let selectedMarker = null;
 
       pauseButton.addEventListener("click", () => {
         isPaused = !isPaused;
@@ -361,7 +431,24 @@
 
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(earth.children);
-        updateInfoBox(intersects);
+
+        // Update cursor style
+        if (intersects.length > 0) {
+          const intersectedObject = intersects[0].object;
+          const markerGroup = intersectedObject.parent;
+          if (markerGroup.userData && markerGroup.userData.title) {
+            document.body.style.cursor = "pointer";
+          } else {
+            document.body.style.cursor = "default";
+          }
+        } else {
+          document.body.style.cursor = "default";
+        }
+
+        // Keep selected marker's info box visible
+        if (selectedMarker) {
+          updateInfoBox([{ object: selectedMarker }]);
+        }
 
         renderer.render(scene, camera);
       }
