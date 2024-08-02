@@ -1,5 +1,9 @@
 # NewsMap Globe
 
+## Video Demo
+
+[Watch NewsMap Globe Demo](./demo/newsmapv2.gif)
+
 ## Overview
 
 NewsMap Globe is an interactive 3D visualization tool that displays global news on a rotating Earth model. It fetches news articles from various sources and categories, then uses AI to determine the most relevant geographical location for each article. These locations are then displayed as markers on a 3D globe, allowing users to explore news from around the world in an engaging and intuitive manner.
