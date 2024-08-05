@@ -32,8 +32,8 @@ NewsMap Globe is an interactive 3D visualization tool that displays global news 
 1. Clone the repository:
 
    ```
-   git clone https://github.com/yourusername/newsmap-globe.git
-   cd newsmap-globe
+   git clone https://github.com/ghsaboias/three-js.git
+   cd three-js
    ```
 
 2. Set up the backend server:
