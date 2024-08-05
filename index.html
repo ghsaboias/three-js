@@ -115,6 +115,7 @@
         <option value="in">India</option>
         <option value="au">Australia</option>
         <option value="ca">Canada</option>
+        <option value="br">Brazil</option>
       </select>
       <select id="source" style="display: none">
         <option value="bbc-news">BBC News</option>
@@ -134,8 +135,7 @@
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-      const BASE_URL = "https://saurav.tech/NewsAPI/";
-      const BACKEND_URL = "http://localhost:3000/ask-claude";
+      const BACKEND_URL = "http://localhost:3000";
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
@@ -187,10 +187,10 @@
             Latitude: [Latitude]
             Longitude: [Longitude]
             Reasoning: [Brief explanation of your choice]
-            `;
+        `;
 
         try {
-          const response = await fetch(BACKEND_URL, {
+          const response = await fetch(`${BACKEND_URL}/ask-claude`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -203,10 +203,16 @@
           }
 
           const data = await response.json();
-          console.log("from backend:", data);
-          return data.content[0].text;
+          console.log("Response from Claude API:", data);
+
+          if (data.content && data.content[0] && data.content[0].text) {
+            return data.content[0].text;
+          } else {
+            throw new Error("Unexpected response format from Claude API");
+          }
         } catch (error) {
-          console.error("Error calling backend API:", error);
+          console.error("Error calling Claude API:", error);
+          log(`Error calling Claude API: ${error.message}`);
           return null;
         }
       }
@@ -297,20 +303,27 @@
 
       async function fetchNews() {
         const newsSource = document.getElementById("newsSource").value;
-        let url;
+        let params = new URLSearchParams();
+
         if (newsSource === "top-headlines") {
           const category = document.getElementById("category").value;
           const country = document.getElementById("country").value;
-          url = `${BASE_URL}top-headlines/category/${category}/${country}.json`;
+          params.append("endpoint", "top-headlines");
+          params.append("category", category);
+          params.append("country", country);
         } else {
           const source = document.getElementById("source").value;
-          url = `${BASE_URL}everything/${source}.json`;
+          params.append("endpoint", "everything");
+          params.append("sources", source);
         }
+
+        const url = `${BACKEND_URL}/api/news?${params.toString()}`;
 
         log(`Fetching news from URL: ${url}`);
 
         try {
           const response = await fetch(url);
+          console.log(response);
           log(
             `Fetch response received. Status: ${response.status} ${response.statusText}`
           );
